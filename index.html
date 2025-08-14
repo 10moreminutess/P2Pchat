@@ -1,88 +1,259 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>P2P Chat</title>
-  <style>
-    body { font-family: sans-serif; }
-    #messages { border: 1px solid #ccc; height: 200px; overflow-y: auto; padding: 5px; }
-    #input { width: 80%; }
-    #send { width: 18%; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Chat - Debug Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        button {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        button:hover {
+            background: #38a169;
+        }
+
+        #debug-info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
-  <h1>P2P Chat</h1>
-  <div id="messages"></div>
-  <input id="input" placeholder="Type a message" />
-  <button id="send">Send</button>
+    <div class="container">
+        <h1>🔧 P2P Chat Debug</h1>
+        
+        <div class="status" id="status">
+            Initializing...
+        </div>
 
-<script>
-const pc = new RTCPeerConnection({
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-});
+        <button onclick="testBasic()">Test Basic Functions</button>
+        <button onclick="testWebRTC()">Test WebRTC Support</button>
+        <button onclick="testConnections()">Test Connections</button>
 
-let channel = pc.createDataChannel("chat");
-channel.onmessage = e => addMessage("Peer", e.data);
-channel.onopen = () => console.log("DataChannel open");
+        <div id="debug-info">
+            <div>🌐 <strong>Location:</strong> <span id="location"></span></div>
+            <div>📱 <strong>User Agent:</strong> <span id="useragent"></span></div>
+            <div>🔗 <strong>WebRTC Support:</strong> <span id="webrtc-support"></span></div>
+            <div>📡 <strong>WebSocket Support:</strong> <span id="websocket-support"></span></div>
+            <div>📻 <strong>SSE Support:</strong> <span id="sse-support"></span></div>
+        </div>
 
-pc.onicecandidate = async e => {
-  if (e.candidate) {
-    await fetch(`/api/signaling?candidate=${encodeURIComponent(JSON.stringify(e.candidate))}`);
-  }
-};
+        <div id="test-results"></div>
+    </div>
 
-pc.ondatachannel = event => {
-  channel = event.channel;
-  channel.onmessage = e => addMessage("Peer", e.data);
-};
+    <script>
+        // Basic error handling
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            document.getElementById('status').innerHTML = `❌ Error: ${e.message}<br>Line: ${e.lineno}`;
+        });
 
-async function pollSignaling() {
-  const res = await fetch(`/api/signaling`);
-  const { offer, answer, candidates } = await res.json();
+        // Initialize debug info
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded');
+            
+            // Fill debug info
+            document.getElementById('location').textContent = window.location.href;
+            document.getElementById('useragent').textContent = navigator.userAgent.substring(0, 80) + '...';
+            
+            // Test WebRTC support
+            const hasWebRTC = !!(window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection);
+            document.getElementById('webrtc-support').textContent = hasWebRTC ? '✅ Yes' : '❌ No';
+            
+            // Test WebSocket support
+            const hasWebSocket = !!window.WebSocket;
+            document.getElementById('websocket-support').textContent = hasWebSocket ? '✅ Yes' : '❌ No';
+            
+            // Test SSE support
+            const hasSSE = !!window.EventSource;
+            document.getElementById('sse-support').textContent = hasSSE ? '✅ Yes' : '❌ No';
+            
+            document.getElementById('status').textContent = '✅ Page loaded successfully!';
+        });
 
-  if (offer && !pc.currentRemoteDescription) {
-    await pc.setRemoteDescription(offer);
-    const answerDesc = await pc.createAnswer();
-    await pc.setLocalDescription(answerDesc);
-    await fetch(`/api/signaling?answer=${encodeURIComponent(JSON.stringify(answerDesc))}`);
-  }
+        function testBasic() {
+            try {
+                console.log('Testing basic functions...');
+                
+                const results = [];
+                
+                // Test localStorage
+                try {
+                    localStorage.setItem('test', 'value');
+                    localStorage.removeItem('test');
+                    results.push('✅ localStorage works');
+                } catch (e) {
+                    results.push('❌ localStorage failed: ' + e.message);
+                }
+                
+                // Test JSON
+                try {
+                    JSON.parse('{"test": true}');
+                    JSON.stringify({test: true});
+                    results.push('✅ JSON works');
+                } catch (e) {
+                    results.push('❌ JSON failed: ' + e.message);
+                }
+                
+                // Test random ID generation
+                try {
+                    const id = Math.random().toString(36).substring(2, 15);
+                    results.push('✅ ID generation works: ' + id);
+                } catch (e) {
+                    results.push('❌ ID generation failed: ' + e.message);
+                }
+                
+                displayResults('Basic Functions', results);
+                
+            } catch (error) {
+                console.error('Basic test failed:', error);
+                displayResults('Basic Functions', ['❌ Test failed: ' + error.message]);
+            }
+        }
 
-  if (answer && pc.signalingState === "have-local-offer" && !pc.currentRemoteDescription) {
-    await pc.setRemoteDescription(answer);
-  }
+        function testWebRTC() {
+            try {
+                console.log('Testing WebRTC...');
+                
+                const results = [];
+                
+                // Test RTCPeerConnection creation
+                try {
+                    const pc = new RTCPeerConnection({
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    });
+                    results.push('✅ RTCPeerConnection created');
+                    pc.close();
+                } catch (e) {
+                    results.push('❌ RTCPeerConnection failed: ' + e.message);
+                }
+                
+                displayResults('WebRTC Support', results);
+                
+            } catch (error) {
+                console.error('WebRTC test failed:', error);
+                displayResults('WebRTC Support', ['❌ Test failed: ' + error.message]);
+            }
+        }
 
-  if (candidates) {
-    for (let c of candidates) {
-      try { await pc.addIceCandidate(c); } catch {}
-    }
-  }
+        function testConnections() {
+            try {
+                console.log('Testing connections...');
+                
+                const results = [];
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                
+                results.push(`🌐 Environment: ${isLocal ? 'Local' : 'Production'}`);
+                
+                if (isLocal) {
+                    // Test WebSocket connection
+                    try {
+                        const ws = new WebSocket('ws://localhost:3001');
+                        ws.onopen = () => {
+                            results.push('✅ WebSocket connection successful');
+                            displayResults('Connection Test', results);
+                            ws.close();
+                        };
+                        ws.onerror = (error) => {
+                            results.push('❌ WebSocket connection failed - is server running?');
+                            displayResults('Connection Test', results);
+                        };
+                        ws.onclose = () => {
+                            console.log('WebSocket closed');
+                        };
+                    } catch (e) {
+                        results.push('❌ WebSocket test failed: ' + e.message);
+                        displayResults('Connection Test', results);
+                    }
+                } else {
+                    // Test SSE connection
+                    try {
+                        const testUserId = Math.random().toString(36).substring(2, 15);
+                        const eventSource = new EventSource(`/api/signaling?userId=${testUserId}`);
+                        
+                        eventSource.onopen = () => {
+                            results.push('✅ SSE connection successful');
+                            displayResults('Connection Test', results);
+                            eventSource.close();
+                        };
+                        
+                        eventSource.onerror = (error) => {
+                            results.push('❌ SSE connection failed');
+                            displayResults('Connection Test', results);
+                            eventSource.close();
+                        };
+                    } catch (e) {
+                        results.push('❌ SSE test failed: ' + e.message);
+                        displayResults('Connection Test', results);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                displayResults('Connection Test', ['❌ Test failed: ' + error.message]);
+            }
+        }
 
-  setTimeout(pollSignaling, 1000); // poll every second
-}
-
-async function start() {
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await fetch(`/api/signaling?offer=${encodeURIComponent(JSON.stringify(offer))}`);
-  pollSignaling();
-}
-
-function addMessage(sender, text) {
-  const div = document.getElementById("messages");
-  div.innerHTML += `<p><strong>${sender}:</strong> ${text}</p>`;
-  div.scrollTop = div.scrollHeight;
-}
-
-document.getElementById("send").onclick = () => {
-  const msg = document.getElementById("input").value;
-  if (msg && channel.readyState === "open") {
-    channel.send(msg);
-    addMessage("You", msg);
-    document.getElementById("input").value = "";
-  }
-};
-
-start();
-</script>
+        function displayResults(title, results) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultHTML = `
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; margin: 10px 0; border-radius: 8px;">
+                    <h3>${title}</h3>
+                    ${results.map(result => `<div style="margin: 5px 0;">${result}</div>`).join('')}
+                </div>
+            `;
+            resultsDiv.innerHTML += resultHTML;
+        }
+    </script>
 </body>
 </html>
