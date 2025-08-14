@@ -1,27 +1,12 @@
 {
   "version": 2,
+  "public": true,
   "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "api/*.js", "use": "@vercel/node" }
   ],
   "routes": [
-    {
-      "src": "/",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "functions": {
-    "api/websocket.js": {
-      "maxDuration": 300
-    }
-  },
-  "env": {
-    "WS_PORT": "3001"
-  }
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/api/(.*)", "dest": "/api/$1" }
+  ]
 }
