@@ -227,4 +227,134 @@ function handleUserDisconnect(ws, message) {
     if (!user) return;
     
     // Notify partner if exists
-    if (partnerI
+    if (partnerId || user.partnerId) {
+        const partnerIdToNotify = partnerId || user.partnerId;
+        const partner = users.get(partnerIdToNotify);
+        
+        if (partner) {
+            partner.partnerId = null;
+            partner.status = 'idle';
+            
+            try {
+                partner.ws.send(JSON.stringify({
+                    type: 'partner-disconnected',
+                    message: 'Your chat partner disconnected'
+                }));
+            } catch (error) {
+                console.error('Failed to notify partner of disconnection:', error);
+            }
+        }
+    }
+    
+    // Reset user status
+    user.status = 'idle';
+    user.partnerId = null;
+    waitingUsers.delete(userId);
+    
+    console.log(`User ${userId} disconnected from chat`);
+}
+
+function handleDisconnection(ws) {
+    if (!ws.userId) return;
+    
+    const userId = ws.userId;
+    const user = users.get(userId);
+    
+    if (user) {
+        // Notify partner if exists
+        if (user.partnerId) {
+            handleUserDisconnect(ws, { userId, partnerId: user.partnerId });
+        }
+        
+        // Remove user
+        users.delete(userId);
+        waitingUsers.delete(userId);
+        
+        console.log(`User ${userId} disconnected. Total users: ${users.size}`);
+        broadcastUserCount();
+    }
+}
+
+function broadcastUserCount() {
+    const count = users.size;
+    const message = JSON.stringify({
+        type: 'user-count',
+        count: count
+    });
+    
+    users.forEach((user) => {
+        try {
+            if (user.ws.readyState === WebSocket.OPEN) {
+                user.ws.send(message);
+            }
+        } catch (error) {
+            console.error('Failed to send user count to user:', error);
+        }
+    });
+}
+
+function cleanupConnections() {
+    const now = Date.now();
+    const timeout = 60000; // 1 minute timeout
+    
+    const disconnectedUsers = [];
+    
+    users.forEach((user, userId) => {
+        // Check if connection is still alive
+        if (user.ws.readyState !== WebSocket.OPEN) {
+            disconnectedUsers.push(userId);
+        } else {
+            // Update last seen
+            user.lastSeen = now;
+            
+            // Send ping to keep connection alive
+            try {
+                user.ws.ping();
+            } catch (error) {
+                console.error('Failed to ping user:', userId, error);
+                disconnectedUsers.push(userId);
+            }
+        }
+    });
+    
+    // Remove disconnected users
+    disconnectedUsers.forEach(userId => {
+        console.log(`Cleaning up disconnected user: ${userId}`);
+        const user = users.get(userId);
+        if (user) {
+            handleDisconnection(user.ws);
+        }
+    });
+    
+    if (disconnectedUsers.length > 0) {
+        console.log(`Cleaned up ${disconnectedUsers.length} disconnected users. Active users: ${users.size}`);
+        broadcastUserCount();
+    }
+}
+
+// Export for Vercel serverless functions
+module.exports = async (req, res) => {
+    if (req.method === 'GET') {
+        // Health check endpoint
+        res.status(200).json({
+            status: 'WebSocket server running',
+            users: users.size,
+            waiting: waitingUsers.size,
+            timestamp: new Date().toISOString()
+        });
+        return;
+    }
+    
+    // Initialize WebSocket server if not already done
+    if (!wss) {
+        initWebSocketServer();
+    }
+    
+    res.status(200).json({ message: 'WebSocket server initialized' });
+};
+
+// For standalone server (development)
+if (require.main === module) {
+    initWebSocketServer();
+    console.log('Standalone WebSocket server started');
+}
