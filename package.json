@@ -1,0 +1,32 @@
+{
+  "name": "p2p-chat-signaling-server",
+  "version": "1.0.0",
+  "description": "WebRTC signaling server for P2P chat application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "vercel-build": "echo 'Building for Vercel...'",
+    "test": "echo 'No tests specified'"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "webrtc",
+    "signaling",
+    "websocket",
+    "p2p",
+    "chat",
+    "vercel"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
