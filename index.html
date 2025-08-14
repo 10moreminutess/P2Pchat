@@ -1,750 +1,88 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random P2P Chat</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .chat-container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            color: #333;
-            font-size: 2.5em;
-            font-weight: 600;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .status {
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-weight: 500;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .status.disconnected {
-            background: #fee;
-            color: #c53030;
-            border: 2px solid #feb2b2;
-        }
-
-        .status.connecting {
-            background: #fffaf0;
-            color: #d69e2e;
-            border: 2px solid #fbd38d;
-        }
-
-        .status.connected {
-            background: #f0fff4;
-            color: #38a169;
-            border: 2px solid #9ae6b4;
-        }
-
-        .status.waiting {
-            background: #ebf4ff;
-            color: #3182ce;
-            border: 2px solid #90cdf4;
-        }
-
-        .chat-messages {
-            height: 300px;
-            overflow-y: auto;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            background: #f8fafc;
-            scroll-behavior: smooth;
-        }
-
-        .message {
-            margin-bottom: 15px;
-            padding: 12px 16px;
-            border-radius: 18px;
-            max-width: 80%;
-            word-wrap: break-word;
-            animation: messageSlide 0.3s ease-out;
-        }
-
-        @keyframes messageSlide {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.sent {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            margin-left: auto;
-            text-align: right;
-        }
-
-        .message.received {
-            background: #e2e8f0;
-            color: #2d3748;
-        }
-
-        .message.system {
-            background: #fed7d7;
-            color: #c53030;
-            text-align: center;
-            margin: 0 auto;
-            font-style: italic;
-            max-width: 90%;
-        }
-
-        .input-container {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .message-input {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .message-input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .send-btn, .connect-btn, .disconnect-btn, .skip-btn {
-            padding: 15px 25px;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .send-btn {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-
-        .send-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .connect-btn {
-            background: linear-gradient(135deg, #48bb78, #38a169);
-            color: white;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-
-        .connect-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(72, 187, 120, 0.4);
-        }
-
-        .disconnect-btn, .skip-btn {
-            background: linear-gradient(135deg, #f56565, #e53e3e);
-            color: white;
-            width: 48%;
-        }
-
-        .skip-btn {
-            background: linear-gradient(135deg, #ed8936, #dd6b20);
-        }
-
-        .disconnect-btn:hover, .skip-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(245, 101, 101, 0.4);
-        }
-
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .control-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
-        }
-
-        .user-count {
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-
-        .connection-info {
-            font-size: 12px;
-            color: #666;
-            text-align: center;
-            margin-top: 5px;
-        }
-
-        @media (max-width: 480px) {
-            .chat-container {
-                padding: 20px;
-                margin: 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .input-container {
-                flex-direction: column;
-            }
-
-            .control-buttons {
-                flex-direction: column;
-            }
-
-            .disconnect-btn, .skip-btn {
-                width: 100%;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>P2P Chat</title>
+  <style>
+    body { font-family: sans-serif; }
+    #messages { border: 1px solid #ccc; height: 200px; overflow-y: auto; padding: 5px; }
+    #input { width: 80%; }
+    #send { width: 18%; }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="header">
-            <h1>Random P2P Chat</h1>
-            <p>Connect with strangers instantly</p>
-        </div>
+  <h1>P2P Chat</h1>
+  <div id="messages"></div>
+  <input id="input" placeholder="Type a message" />
+  <button id="send">Send</button>
 
-        <div id="status" class="status disconnected">
-            Disconnected - Click "Find Random Chat" to start
-        </div>
+<script>
+const pc = new RTCPeerConnection({
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+});
 
-        <div id="chatMessages" class="chat-messages"></div>
+let channel = pc.createDataChannel("chat");
+channel.onmessage = e => addMessage("Peer", e.data);
+channel.onopen = () => console.log("DataChannel open");
 
-        <div class="input-container">
-            <input 
-                type="text" 
-                id="messageInput" 
-                class="message-input" 
-                placeholder="Type your message..."
-                disabled
-            >
-            <button id="sendBtn" class="send-btn" disabled>Send</button>
-        </div>
+pc.onicecandidate = async e => {
+  if (e.candidate) {
+    await fetch(`/api/signaling?candidate=${encodeURIComponent(JSON.stringify(e.candidate))}`);
+  }
+};
 
-        <div class="controls">
-            <button id="connectBtn" class="connect-btn">Find Random Chat</button>
-            <div class="control-buttons" style="display: none;" id="controlButtons">
-                <button id="disconnectBtn" class="disconnect-btn">Disconnect</button>
-                <button id="skipBtn" class="skip-btn">Skip User</button>
-            </div>
-        </div>
+pc.ondatachannel = event => {
+  channel = event.channel;
+  channel.onmessage = e => addMessage("Peer", e.data);
+};
 
-        <div id="userCount" class="user-count">Users online: 0</div>
-        <div id="connectionInfo" class="connection-info"></div>
-    </div>
+async function pollSignaling() {
+  const res = await fetch(`/api/signaling`);
+  const { offer, answer, candidates } = await res.json();
 
-    <script>
-        class P2PChat {
-            constructor() {
-                this.ws = null;
-                this.peerConnection = null;
-                this.dataChannel = null;
-                this.isConnected = false;
-                this.isConnecting = false;
-                this.userId = this.generateUserId();
-                this.partnerId = null;
-                this.isInitiator = false;
-                this.messageQueue = [];
-                
-                this.initializeElements();
-                this.bindEvents();
-                
-                // WebRTC configuration with STUN servers
-                this.rtcConfiguration = {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun.stunprotocol.org:3478' },
-                        { urls: 'stun:stun2.l.google.com:19302' }
-                    ]
-                };
+  if (offer && !pc.currentRemoteDescription) {
+    await pc.setRemoteDescription(offer);
+    const answerDesc = await pc.createAnswer();
+    await pc.setLocalDescription(answerDesc);
+    await fetch(`/api/signaling?answer=${encodeURIComponent(JSON.stringify(answerDesc))}`);
+  }
 
-                // Try to connect to signaling server
-                this.connectToSignalingServer();
-            }
+  if (answer && pc.signalingState === "have-local-offer" && !pc.currentRemoteDescription) {
+    await pc.setRemoteDescription(answer);
+  }
 
-            generateUserId() {
-                return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            }
+  if (candidates) {
+    for (let c of candidates) {
+      try { await pc.addIceCandidate(c); } catch {}
+    }
+  }
 
-            initializeElements() {
-                this.statusEl = document.getElementById('status');
-                this.messagesEl = document.getElementById('chatMessages');
-                this.messageInput = document.getElementById('messageInput');
-                this.sendBtn = document.getElementById('sendBtn');
-                this.connectBtn = document.getElementById('connectBtn');
-                this.disconnectBtn = document.getElementById('disconnectBtn');
-                this.skipBtn = document.getElementById('skipBtn');
-                this.userCountEl = document.getElementById('userCount');
-                this.connectionInfoEl = document.getElementById('connectionInfo');
-                this.controlButtonsEl = document.getElementById('controlButtons');
-            }
+  setTimeout(pollSignaling, 1000); // poll every second
+}
 
-            bindEvents() {
-                this.connectBtn.addEventListener('click', () => this.findRandomChat());
-                this.disconnectBtn.addEventListener('click', () => this.disconnect());
-                this.skipBtn.addEventListener('click', () => this.skipUser());
-                this.sendBtn.addEventListener('click', () => this.sendMessage());
-                this.messageInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        this.sendMessage();
-                    }
-                });
+async function start() {
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await fetch(`/api/signaling?offer=${encodeURIComponent(JSON.stringify(offer))}`);
+  pollSignaling();
+}
 
-                // Handle page visibility change
-                document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden && !this.ws) {
-                        this.connectToSignalingServer();
-                    }
-                });
-            }
+function addMessage(sender, text) {
+  const div = document.getElementById("messages");
+  div.innerHTML += `<p><strong>${sender}:</strong> ${text}</p>`;
+  div.scrollTop = div.scrollHeight;
+}
 
-            updateStatus(message, type = 'disconnected') {
-                this.statusEl.textContent = message;
-                this.statusEl.className = `status ${type}`;
-            }
+document.getElementById("send").onclick = () => {
+  const msg = document.getElementById("input").value;
+  if (msg && channel.readyState === "open") {
+    channel.send(msg);
+    addMessage("You", msg);
+    document.getElementById("input").value = "";
+  }
+};
 
-            addMessage(content, type = 'system', timestamp = true) {
-                const messageEl = document.createElement('div');
-                messageEl.className = `message ${type}`;
-                
-                if (timestamp && (type === 'sent' || type === 'received')) {
-                    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    messageEl.innerHTML = `<div>${content}</div><small style="opacity: 0.7; font-size: 11px;">${time}</small>`;
-                } else {
-                    messageEl.textContent = content;
-                }
-                
-                this.messagesEl.appendChild(messageEl);
-                this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-            }
-
-data);
-                        await this.handleSignalingMessage(data);
-                    };
-
-                    this.ws.onclose = () => {
-                        console.log('Disconnected from signaling server');
-                        this.connectionInfoEl.textContent = 'Disconnected from server - retrying...';
-                        setTimeout(() => this.connectToSignalingServer(), 3000);
-                    };
-
-                    this.ws.onerror = (error) => {
-                        console.error('WebSocket error:', error);
-                        this.connectionInfoEl.textContent = 'Server connection failed';
-                    };
-
-                } catch (error) {
-                    console.error('Failed to connect to signaling server:', error);
-                    this.connectionInfoEl.textContent = 'Using offline mode (demo)';
-                    this.startOfflineMode();
-                }
-            }
-
-            startOfflineMode() {
-                // Fallback to demo mode if signaling server is unavailable
-                this.addMessage('Running in demo mode - signaling server not available', 'system');
-                this.simulateUserCount();
-            }
-
-            async handleSignalingMessage(data) {
-                switch (data.type) {
-                    case 'user-count':
-                        this.userCountEl.textContent = `Users online: ${data.count}`;
-                        break;
-                        
-                    case 'matched':
-                        this.partnerId = data.partnerId;
-                        this.isInitiator = data.isInitiator;
-                        this.updateStatus('Found a partner! Establishing connection...', 'connecting');
-                        await this.createPeerConnection();
-                        break;
-                        
-                    case 'offer':
-                        await this.handleOffer(data);
-                        break;
-                        
-                    case 'answer':
-                        await this.handleAnswer(data);
-                        break;
-                        
-                    case 'ice-candidate':
-                        await this.handleIceCandidate(data);
-                        break;
-                        
-                    case 'partner-disconnected':
-                        this.handlePartnerDisconnect();
-                        break;
-
-                    case 'waiting':
-                        this.updateStatus('Waiting for someone to chat with...', 'waiting');
-                        break;
-                }
-            }
-
-            async findRandomChat() {
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                
-                if (isLocal && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
-                    this.updateStatus('Connecting to server...', 'connecting');
-                    await this.connectToSignalingServer();
-                    return;
-                }
-
-                this.isConnecting = true;
-                this.updateStatus('Looking for someone to chat with...', 'connecting');
-                this.connectBtn.style.display = 'none';
-                this.controlButtonsEl.style.display = 'flex';
-                
-                if (isLocal && this.ws) {
-                    // WebSocket method
-                    this.ws.send(JSON.stringify({
-                        type: 'find-match',
-                        userId: this.userId
-                    }));
-                } else {
-                    // SSE method - make HTTP request
-                    try {
-                        const response = await fetch('/api/signaling/find-match', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                userId: this.userId
-                            })
-                        });
-                        
-                        const result = await response.json();
-                        console.log('Find match result:', result);
-                    } catch (error) {
-                        console.error('Failed to find match:', error);
-                        this.updateStatus('Failed to find match. Try again.', 'disconnected');
-                        this.resetUI();
-                    }
-                }
-            }
-
-            async createPeerConnection() {
-                this.peerConnection = new RTCPeerConnection(this.rtcConfiguration);
-                
-                // Set up data channel
-                if (this.isInitiator) {
-                    this.dataChannel = this.peerConnection.createDataChannel('messages', {
-                        ordered: true
-                    });
-                    this.setupDataChannel(this.dataChannel);
-                } else {
-                    this.peerConnection.ondatachannel = (event) => {
-                        this.dataChannel = event.channel;
-                        this.setupDataChannel(this.dataChannel);
-                    };
-                }
-
-                // Handle ICE candidates
-                this.peerConnection.onicecandidate = async (event) => {
-                    if (event.candidate) {
-                        await this.sendSignalingMessage({
-                            type: 'ice-candidate',
-                            candidate: event.candidate,
-                            to: this.partnerId
-                        });
-                    }
-                };
-
-                // Handle connection state changes
-                this.peerConnection.onconnectionstatechange = () => {
-                    console.log('Connection state:', this.peerConnection.connectionState);
-                    if (this.peerConnection.connectionState === 'failed') {
-                        this.addMessage('Connection failed. Please try again.', 'system');
-                        this.disconnect();
-                    }
-                };
-
-                if (this.isInitiator) {
-                    const offer = await this.peerConnection.createOffer();
-                    await this.peerConnection.setLocalDescription(offer);
-                    
-                    await this.sendSignalingMessage({
-                        type: 'offer',
-                        offer: offer,
-                        to: this.partnerId
-                    });
-                }
-            }
-
-            async sendSignalingMessage(message) {
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                
-                if (isLocal && this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    // WebSocket method
-                    this.ws.send(JSON.stringify(message));
-                } else {
-                    // SSE method - HTTP POST
-                    try {
-                        await fetch('/api/signaling/signal', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                from: this.userId,
-                                to: message.to,
-                                type: message.type,
-                                offer: message.offer,
-                                answer: message.answer,
-                                candidate: message.candidate
-                            })
-                        });
-                    } catch (error) {
-                        console.error('Failed to send signaling message:', error);
-                    }
-                }
-            }
-            }
-
-            setupDataChannel(channel) {
-                channel.onopen = () => {
-                    console.log('Data channel opened');
-                    this.isConnected = true;
-                    this.isConnecting = false;
-                    this.updateStatus('Connected! Start chatting.', 'connected');
-                    this.messageInput.disabled = false;
-                    this.sendBtn.disabled = false;
-                    this.addMessage('Connected to a stranger. Say hello! 👋', 'system');
-                    this.messageInput.focus();
-                    
-                    // Send queued messages
-                    while (this.messageQueue.length > 0) {
-                        const queuedMessage = this.messageQueue.shift();
-                        channel.send(queuedMessage);
-                    }
-                };
-
-                channel.onmessage = (event) => {
-                    this.addMessage(event.data, 'received');
-                };
-
-                channel.onclose = () => {
-                    console.log('Data channel closed');
-                    if (this.isConnected) {
-                        this.addMessage('Your chat partner disconnected', 'system');
-                        this.handlePartnerDisconnect();
-                    }
-                };
-
-                channel.onerror = (error) => {
-                    console.error('Data channel error:', error);
-                    this.addMessage('Connection error occurred', 'system');
-                };
-            }
-
-            async handleOffer(data) {
-                await this.peerConnection.setRemoteDescription(data.offer);
-                const answer = await this.peerConnection.createAnswer();
-                await this.peerConnection.setLocalDescription(answer);
-                
-                await this.sendSignalingMessage({
-                    type: 'answer',
-                    answer: answer,
-                    to: data.from
-                });
-            }
-
-            async handleAnswer(data) {
-                await this.peerConnection.setRemoteDescription(data.answer);
-            }
-
-            async handleIceCandidate(data) {
-                try {
-                    await this.peerConnection.addIceCandidate(data.candidate);
-                } catch (error) {
-                    console.error('Error adding ICE candidate:', error);
-                }
-            }
-
-            handlePartnerDisconnect() {
-                this.isConnected = false;
-                this.isConnecting = false;
-                this.partnerId = null;
-                
-                if (this.peerConnection) {
-                    this.peerConnection.close();
-                    this.peerConnection = null;
-                }
-                
-                if (this.dataChannel) {
-                    this.dataChannel.close();
-                    this.dataChannel = null;
-                }
-                
-                this.updateStatus('Partner disconnected', 'disconnected');
-                this.resetUI();
-            }
-
-            sendMessage() {
-                const message = this.messageInput.value.trim();
-                if (!message) return;
-
-                if (this.isConnected && this.dataChannel && this.dataChannel.readyState === 'open') {
-                    this.dataChannel.send(message);
-                    this.addMessage(message, 'sent');
-                } else {
-                    // Queue message if not connected yet
-                    this.messageQueue.push(message);
-                    this.addMessage(message, 'sent');
-                    this.addMessage('Message queued - connecting...', 'system');
-                }
-                
-                this.messageInput.value = '';
-            }
-
-            skipUser() {
-                if (this.isConnected || this.isConnecting) {
-                    this.disconnect();
-                    setTimeout(() => {
-                        this.findRandomChat();
-                    }, 500);
-                }
-            }
-
-            async disconnect() {
-                this.isConnected = false;
-                this.isConnecting = false;
-                
-                if (this.dataChannel) {
-                    this.dataChannel.close();
-                    this.dataChannel = null;
-                }
-                
-                if (this.peerConnection) {
-                    this.peerConnection.close();
-                    this.peerConnection = null;
-                }
-                
-                // Notify server of disconnection
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                
-                if (isLocal && this.ws && this.partnerId) {
-                    this.ws.send(JSON.stringify({
-                        type: 'disconnect',
-                        partnerId: this.partnerId
-                    }));
-                } else if (this.partnerId) {
-                    try {
-                        await fetch('/api/signaling/disconnect', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                userId: this.userId
-                            })
-                        });
-                    } catch (error) {
-                        console.error('Failed to notify server of disconnection:', error);
-                    }
-                }
-                
-                this.partnerId = null;
-                this.updateStatus('Disconnected', 'disconnected');
-                this.addMessage('Disconnected from chat', 'system');
-                this.resetUI();
-            }
-
-            resetUI() {
-                this.messageInput.disabled = true;
-                this.sendBtn.disabled = true;
-                this.connectBtn.style.display = 'block';
-                this.controlButtonsEl.style.display = 'none';
-                this.messageInput.value = '';
-                this.messageQueue = [];
-            }
-
-            simulateUserCount() {
-                // Fallback user count simulation for demo
-                let userCount = Math.floor(Math.random() * 50) + 20;
-                setInterval(() => {
-                    userCount += Math.floor(Math.random() * 6) - 3;
-                    userCount = Math.max(5, Math.min(userCount, 150));
-                    this.userCountEl.textContent = `Users online: ${userCount}`;
-                }, 8000);
-            }
-        }
-
-        // Initialize the chat app when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            new P2PChat();
-        });
-
-        // Handle page unload
-        window.addEventListener('beforeunload', () => {
-            if (window.p2pChat) {
-                window.p2pChat.disconnect();
-            }
-        });
-    </script>
+start();
+</script>
 </body>
 </html>
