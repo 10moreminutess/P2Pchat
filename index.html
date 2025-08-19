@@ -125,10 +125,6 @@
             border-radius: 10px;
         }
 
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-
         .message {
             margin-bottom: 15px;
             padding: 12px 16px;
@@ -136,7 +132,6 @@
             max-width: 80%;
             word-wrap: break-word;
             animation: messageSlide 0.3s ease-out;
-            position: relative;
         }
 
         @keyframes messageSlide {
@@ -171,57 +166,10 @@
             max-width: 90%;
         }
 
-        .typing-indicator {
-            display: none;
-            padding: 10px 16px;
-            background: #e2e8f0;
-            border-radius: 18px;
-            max-width: 80px;
-            margin-bottom: 10px;
-        }
-
-        .typing-indicator.show {
-            display: block;
-            animation: messageSlide 0.3s ease-out;
-        }
-
-        .typing-dots {
-            display: flex;
-            gap: 4px;
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background: #718096;
-            border-radius: 50%;
-            animation: typingPulse 1.4s ease-in-out infinite both;
-        }
-
-        .typing-dot:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-dot:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes typingPulse {
-            0%, 80%, 100% {
-                transform: scale(0.8);
-                opacity: 0.5;
-            }
-            40% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
         .input-container {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            position: relative;
         }
 
         .message-input {
@@ -232,23 +180,12 @@
             font-size: 16px;
             transition: all 0.3s ease;
             background: white;
-            resize: none;
-            min-height: 50px;
-            max-height: 120px;
         }
 
         .message-input:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .char-counter {
-            position: absolute;
-            bottom: -20px;
-            right: 10px;
-            font-size: 12px;
-            color: #666;
         }
 
         .send-btn, .connect-btn, .disconnect-btn, .skip-btn {
@@ -331,6 +268,17 @@
             margin-top: 5px;
         }
 
+        .real-badge {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-block;
+            margin-left: 8px;
+        }
+
         .demo-badge {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
@@ -370,33 +318,23 @@
     <div class="chat-container">
         <div class="header">
             <h1>Random P2P Chat</h1>
-            <p>Connect with strangers instantly</p>
+            <p>Connect with real people instantly</p>
         </div>
 
         <div id="status" class="status disconnected">
             Disconnected - Click "Find Random Chat" to start
         </div>
 
-        <div id="chatMessages" class="chat-messages">
-            <div id="typingIndicator" class="typing-indicator">
-                <div class="typing-dots">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                </div>
-            </div>
-        </div>
+        <div id="chatMessages" class="chat-messages"></div>
 
         <div class="input-container">
-            <textarea 
+            <input 
+                type="text" 
                 id="messageInput" 
                 class="message-input" 
                 placeholder="Type your message..."
                 disabled
-                rows="1"
-                maxlength="500"
-            ></textarea>
-            <div class="char-counter" id="charCounter">0/500</div>
+            >
             <button id="sendBtn" class="send-btn" disabled>Send</button>
         </div>
 
@@ -415,7 +353,7 @@
     <script>
         class P2PChat {
             constructor() {
-                this.ws = null;
+                this.eventSource = null;
                 this.peerConnection = null;
                 this.dataChannel = null;
                 this.isConnected = false;
@@ -424,21 +362,19 @@
                 this.partnerId = null;
                 this.isInitiator = false;
                 this.messageQueue = [];
-                this.typingTimer = null;
-                this.lastActivity = Date.now();
+                this.serverAvailable = false;
+                this.demoMode = false;
                 
                 this.initializeElements();
                 this.bindEvents();
                 
-                // WebRTC configuration with multiple STUN servers
+                // WebRTC configuration
                 this.rtcConfiguration = {
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:stun1.l.google.com:19302' },
                         { urls: 'stun:stun.stunprotocol.org:3478' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
-                        { urls: 'stun:stun3.l.google.com:19302' },
-                        { urls: 'stun:stun4.l.google.com:19302' }
+                        { urls: 'stun:stun2.l.google.com:19302' }
                     ]
                 };
 
@@ -461,8 +397,6 @@
                 this.userCountEl = document.getElementById('userCount');
                 this.connectionInfoEl = document.getElementById('connectionInfo');
                 this.controlButtonsEl = document.getElementById('controlButtons');
-                this.typingIndicator = document.getElementById('typingIndicator');
-                this.charCounter = document.getElementById('charCounter');
             }
 
             bindEvents() {
@@ -470,52 +404,26 @@
                 this.disconnectBtn.addEventListener('click', () => this.disconnect());
                 this.skipBtn.addEventListener('click', () => this.skipUser());
                 this.sendBtn.addEventListener('click', () => this.sendMessage());
-
-                // Enhanced input handling
+                
                 this.messageInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.sendMessage();
                     }
                 });
-
-                // Character counter
-                this.messageInput.addEventListener('input', (e) => {
-                    const length = e.target.value.length;
-                    this.charCounter.textContent = `${length}/500`;
-                    this.charCounter.style.color = length > 450 ? '#e53e3e' : '#666';
-                    
-                    // Auto-resize textarea
-                    e.target.style.height = 'auto';
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-                    
-                    // Simulate typing indicator in demo mode
-                    if (this.demoMode && this.isConnected && length > 0) {
-                        this.simulatePartnerTyping();
-                    }
-                });
-
-                // Handle page visibility change
-                document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden && !this.ws) {
-                        this.connectToSignalingServer();
-                    }
-                });
-
-                // Activity tracking
-                ['click', 'keypress', 'touchstart'].forEach(event => {
-                    document.addEventListener(event, () => {
-                        this.lastActivity = Date.now();
-                    });
-                });
             }
 
             updateStatus(message, type = 'disconnected') {
-                this.statusEl.textContent = message;
+                this.statusEl.innerHTML = message;
                 this.statusEl.className = `status ${type}`;
                 
-                // Add demo badge if in demo mode
-                if (this.demoMode && type === 'connected') {
+                // Add badge based on mode
+                if (this.serverAvailable && type === 'connected') {
+                    const badge = document.createElement('span');
+                    badge.className = 'real-badge';
+                    badge.textContent = 'REAL';
+                    this.statusEl.appendChild(badge);
+                } else if (this.demoMode && type === 'connected') {
                     const badge = document.createElement('span');
                     badge.className = 'demo-badge';
                     badge.textContent = 'DEMO';
@@ -534,8 +442,7 @@
                     messageEl.textContent = content;
                 }
                 
-                // Insert before typing indicator
-                this.messagesEl.insertBefore(messageEl, this.typingIndicator);
+                this.messagesEl.appendChild(messageEl);
                 this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
             }
 
@@ -545,95 +452,77 @@
                 return div.innerHTML;
             }
 
-            showTypingIndicator() {
-                this.typingIndicator.classList.add('show');
-                this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-            }
-
-            hideTypingIndicator() {
-                this.typingIndicator.classList.remove('show');
-            }
-
-            simulatePartnerTyping() {
-                if (!this.isConnected || !this.demoMode) return;
-                
-                clearTimeout(this.typingTimer);
-                this.showTypingIndicator();
-                
-                this.typingTimer = setTimeout(() => {
-                    this.hideTypingIndicator();
-                }, 2000 + Math.random() * 1000);
-            }
-
             async connectToSignalingServer() {
                 try {
-                    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                        ? 'ws://localhost:3001' 
-                        : `wss://${window.location.host}/ws`;
+                    console.log('🔌 Connecting to signaling server...');
                     
-                    console.log('Attempting to connect to:', serverUrl);
-                    this.ws = new WebSocket(serverUrl);
+                    // Test server availability first
+                    const testResponse = await fetch('/api/signaling/status');
                     
-                    this.ws.onopen = () => {
-                        console.log('Connected to signaling server');
-                        this.connectionInfoEl.textContent = 'Connected to server';
+                    if (testResponse.ok) {
+                        console.log('✅ Server available - using real P2P mode');
+                        this.serverAvailable = true;
+                        this.connectionInfoEl.textContent = 'Server connected - Real P2P mode';
                         
-                        // Request user count
-                        this.ws.send(JSON.stringify({ type: 'get-user-count' }));
-                    };
+                        // Connect via Server-Sent Events
+                        this.eventSource = new EventSource(`/api/signaling?userId=${this.userId}`);
+                        
+                        this.eventSource.onmessage = (event) => {
+                            const data = JSON.parse(event.data);
+                            console.log('📨 Received:', data);
+                            this.handleSignalingMessage(data);
+                        };
 
-                    this.ws.onmessage = async (event) => {
-                        const data = JSON.parse(event.data);
-                        console.log('Received message:', data);
-                        await this.handleSignalingMessage(data);
-                    };
+                        // Handle specific event types
+                        ['connected', 'matched', 'signal', 'user-count', 'waiting', 'partner-disconnected'].forEach(eventType => {
+                            this.eventSource.addEventListener(eventType, (event) => {
+                                const data = JSON.parse(event.data);
+                                console.log(`📨 ${eventType}:`, data);
+                                this.handleSignalingMessage({ type: eventType, ...data });
+                            });
+                        });
 
-                    this.ws.onclose = () => {
-                        console.log('Disconnected from signaling server');
-                        this.connectionInfoEl.textContent = 'Disconnected from server - retrying...';
-                        if (!this.demoMode) {
+                        this.eventSource.onerror = (error) => {
+                            console.error('❌ SSE Error:', error);
+                            this.connectionInfoEl.textContent = 'Connection lost - retrying...';
                             setTimeout(() => this.connectToSignalingServer(), 3000);
-                        }
-                    };
-
-                    this.ws.onerror = (error) => {
-                        console.error('WebSocket error:', error);
-                        this.connectionInfoEl.textContent = 'Server connection failed';
-                        if (!this.demoMode) {
-                            this.startOfflineMode();
-                        }
-                    };
-
+                        };
+                        
+                    } else {
+                        throw new Error('Server not available');
+                    }
+                    
                 } catch (error) {
-                    console.error('Failed to connect to signaling server:', error);
-                    this.startOfflineMode();
+                    console.log('⚠️  Server not available - switching to demo mode');
+                    this.startDemoMode();
                 }
             }
 
-            startOfflineMode() {
-                console.log('🎭 Starting enhanced demo mode');
+            startDemoMode() {
                 this.demoMode = true;
-                this.addMessage('Demo Mode: Server not available - simulating P2P chat experience', 'system');
-                this.addMessage('Click "Find Random Chat" to experience the interface! 🚀', 'system');
-                this.connectionInfoEl.textContent = 'Demo Mode - No server required';
+                this.serverAvailable = false;
+                this.connectionInfoEl.textContent = 'Demo Mode - Server not available';
+                this.addMessage('Demo Mode: Experience the interface with AI responses 🤖', 'system');
                 this.simulateUserCount();
             }
 
             simulateUserCount() {
-                let userCount = Math.floor(Math.random() * 80) + 40; // 40-120 users
-                this.userCountEl.textContent = `Users online: ${userCount}`;
+                let userCount = Math.floor(Math.random() * 60) + 25; // 25-85 users
+                this.userCountEl.textContent = `Users online: ${userCount} (simulated)`;
                 
-                const updateCount = () => {
-                    const change = Math.floor(Math.random() * 8) - 4; // -4 to +4
-                    userCount = Math.max(20, Math.min(userCount + change, 150));
-                    this.userCountEl.textContent = `Users online: ${userCount}`;
-                };
-                
-                setInterval(updateCount, 12000); // Update every 12 seconds
+                setInterval(() => {
+                    const change = Math.floor(Math.random() * 6) - 3; // -3 to +3
+                    userCount = Math.max(15, Math.min(userCount + change, 100));
+                    this.userCountEl.textContent = `Users online: ${userCount} (simulated)`;
+                }, 10000);
             }
 
             async handleSignalingMessage(data) {
                 switch (data.type) {
+                    case 'connected':
+                        this.addMessage('Connected to signaling server', 'system');
+                        break;
+                        
                     case 'user-count':
                         this.userCountEl.textContent = `Users online: ${data.count}`;
                         break;
@@ -645,16 +534,8 @@
                         await this.createPeerConnection();
                         break;
                         
-                    case 'offer':
-                        await this.handleOffer(data);
-                        break;
-                        
-                    case 'answer':
-                        await this.handleAnswer(data);
-                        break;
-                        
-                    case 'ice-candidate':
-                        await this.handleIceCandidate(data);
+                    case 'signal':
+                        await this.handleWebRTCSignal(data);
                         break;
                         
                     case 'partner-disconnected':
@@ -667,18 +548,23 @@
                 }
             }
 
+            async handleWebRTCSignal(data) {
+                switch (data.type) {
+                    case 'offer':
+                        await this.handleOffer(data);
+                        break;
+                    case 'answer':
+                        await this.handleAnswer(data);
+                        break;
+                    case 'ice-candidate':
+                        await this.handleIceCandidate(data);
+                        break;
+                }
+            }
+
             async findRandomChat() {
-                // Handle demo mode
                 if (this.demoMode) {
                     this.simulateDemoConnection();
-                    return;
-                }
-                
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                
-                if (isLocal && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
-                    this.updateStatus('Connecting to server...', 'connecting');
-                    await this.connectToSignalingServer();
                     return;
                 }
 
@@ -687,15 +573,20 @@
                 this.connectBtn.style.display = 'none';
                 this.controlButtonsEl.style.display = 'flex';
                 
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this.ws.send(JSON.stringify({
-                        type: 'find-match',
-                        userId: this.userId
-                    }));
-                } else {
-                    // Fallback to demo mode if no server connection
-                    this.demoMode = true;
-                    setTimeout(() => this.simulateDemoConnection(), 1000);
+                try {
+                    const response = await fetch('/api/signaling/find-match', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: this.userId })
+                    });
+                    
+                    const result = await response.json();
+                    console.log('🔍 Find match result:', result);
+                    
+                } catch (error) {
+                    console.error('❌ Failed to find match:', error);
+                    this.addMessage('Connection failed. Please try again.', 'system');
+                    this.resetUI();
                 }
             }
 
@@ -707,19 +598,17 @@
                 this.connectBtn.style.display = 'none';
                 this.controlButtonsEl.style.display = 'flex';
                 
-                // Simulate realistic connection time
                 setTimeout(() => {
                     this.partnerId = 'demo_partner_' + Math.random().toString(36).substr(2, 8);
                     this.isConnected = true;
                     this.isConnecting = false;
                     
-                    this.updateStatus('Connected! Start chatting', 'connected');
+                    this.updateStatus('Connected to AI demo partner', 'connected');
                     this.messageInput.disabled = false;
                     this.sendBtn.disabled = false;
-                    this.addMessage('Connected to a simulated chat partner. Try sending a message! 🤖', 'system');
+                    this.addMessage('Connected to AI demo partner. Try sending a message! 🤖', 'system');
                     this.messageInput.focus();
                     
-                    // Start simulated responses
                     this.simulatePartnerResponses();
                 }, 2000 + Math.random() * 3000);
             }
@@ -729,52 +618,30 @@
                     "Hello! How are you today? 👋",
                     "Nice to meet you! What's your name?",
                     "This chat app looks really cool!",
-                    "That's interesting! Tell me more about that.",
+                    "That's interesting! Tell me more.",
                     "I'm doing great, thanks for asking! 😊",
                     "What's your favorite hobby?",
                     "Where are you from?",
-                    "The weather is nice today, isn't it?",
-                    "Do you like music? What's your favorite genre?",
-                    "I love chatting with new people!",
-                    "This is a pretty neat demo! 🚀",
-                    "What do you think about this app?",
-                    "Have you used other chat apps before?",
+                    "Do you like music? What genre?",
+                    "I love meeting new people!",
+                    "This demo is pretty neat! 🚀",
                     "Technology is amazing these days!",
-                    "Hope you're having a great day! ☀️",
-                    "That's so cool! I'd love to hear more.",
-                    "Haha, that's funny! 😄",
-                    "I agree completely!",
-                    "What's your favorite movie?",
-                    "Do you have any pets?"
+                    "Hope you're having a great day! ☀️"
                 ];
 
                 let responseCount = 0;
-                const maxResponses = 12;
+                const maxResponses = 8;
 
                 const sendResponse = (immediate = false) => {
                     if (!this.isConnected || responseCount >= maxResponses) return;
                     
-                    const delay = immediate ? 1000 + Math.random() * 2000 : 3000 + Math.random() * 7000;
+                    const delay = immediate ? 1500 + Math.random() * 2000 : 4000 + Math.random() * 6000;
                     
-                    // Show typing indicator first
                     setTimeout(() => {
                         if (this.isConnected && responseCount < maxResponses) {
-                            this.showTypingIndicator();
-                            
-                            // Send message after typing delay
-                            setTimeout(() => {
-                                if (this.isConnected) {
-                                    this.hideTypingIndicator();
-                                    const response = responses[Math.floor(Math.random() * responses.length)];
-                                    this.addMessage(response, 'received');
-                                    responseCount++;
-                                    
-                                    // Sometimes send a follow-up
-                                    if (Math.random() < 0.25 && responseCount < maxResponses) {
-                                        setTimeout(() => sendResponse(true), 2000 + Math.random() * 3000);
-                                    }
-                                }
-                            }, 1000 + Math.random() * 2000);
+                            const response = responses[Math.floor(Math.random() * responses.length)];
+                            this.addMessage(response, 'received');
+                            responseCount++;
                         }
                     }, delay);
                 };
@@ -785,14 +652,12 @@
                 // Override sendMessage to trigger responses
                 const originalSendMessage = this.sendMessage.bind(this);
                 this.sendMessage = function() {
-                    const result = originalSendMessage();
+                    originalSendMessage();
                     
-                    // 75% chance to respond to user messages
-                    if (this.isConnected && Math.random() < 0.75) {
+                    // 70% chance to respond to user messages
+                    if (this.isConnected && Math.random() < 0.7) {
                         sendResponse(true);
                     }
-                    
-                    return result;
                 };
             }
 
@@ -814,18 +679,17 @@
 
                 // Handle ICE candidates
                 this.peerConnection.onicecandidate = async (event) => {
-                    if (event.candidate && this.ws && this.ws.readyState === WebSocket.OPEN) {
-                        this.ws.send(JSON.stringify({
+                    if (event.candidate) {
+                        await this.sendSignalingMessage({
                             type: 'ice-candidate',
-                            candidate: event.candidate,
-                            to: this.partnerId
-                        }));
+                            candidate: event.candidate
+                        });
                     }
                 };
 
                 // Handle connection state changes
                 this.peerConnection.onconnectionstatechange = () => {
-                    console.log('Connection state:', this.peerConnection.connectionState);
+                    console.log('🔗 Connection state:', this.peerConnection.connectionState);
                     if (this.peerConnection.connectionState === 'failed') {
                         this.addMessage('Connection failed. Please try again.', 'system');
                         this.disconnect();
@@ -836,25 +700,38 @@
                     const offer = await this.peerConnection.createOffer();
                     await this.peerConnection.setLocalDescription(offer);
                     
-                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                        this.ws.send(JSON.stringify({
-                            type: 'offer',
-                            offer: offer,
-                            to: this.partnerId
-                        }));
-                    }
+                    await this.sendSignalingMessage({
+                        type: 'offer',
+                        offer: offer
+                    });
+                }
+            }
+
+            async sendSignalingMessage(message) {
+                try {
+                    await fetch('/api/signaling/signal', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from: this.userId,
+                            to: this.partnerId,
+                            ...message
+                        })
+                    });
+                } catch (error) {
+                    console.error('❌ Failed to send signaling message:', error);
                 }
             }
 
             setupDataChannel(channel) {
                 channel.onopen = () => {
-                    console.log('Data channel opened');
+                    console.log('✅ Data channel opened');
                     this.isConnected = true;
                     this.isConnecting = false;
-                    this.updateStatus('Connected! Start chatting.', 'connected');
+                    this.updateStatus('Connected! Start chatting with a real person', 'connected');
                     this.messageInput.disabled = false;
                     this.sendBtn.disabled = false;
-                    this.addMessage('Connected to a stranger. Say hello! 👋', 'system');
+                    this.addMessage('Connected to a real person! Say hello! 👋', 'system');
                     this.messageInput.focus();
                     
                     // Send queued messages
@@ -869,7 +746,7 @@
                 };
 
                 channel.onclose = () => {
-                    console.log('Data channel closed');
+                    console.log('❌ Data channel closed');
                     if (this.isConnected) {
                         this.addMessage('Your chat partner disconnected', 'system');
                         this.handlePartnerDisconnect();
@@ -877,7 +754,7 @@
                 };
 
                 channel.onerror = (error) => {
-                    console.error('Data channel error:', error);
+                    console.error('❌ Data channel error:', error);
                     this.addMessage('Connection error occurred', 'system');
                 };
             }
@@ -887,13 +764,10 @@
                 const answer = await this.peerConnection.createAnswer();
                 await this.peerConnection.setLocalDescription(answer);
                 
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this.ws.send(JSON.stringify({
-                        type: 'answer',
-                        answer: answer,
-                        to: data.from
-                    }));
-                }
+                await this.sendSignalingMessage({
+                    type: 'answer',
+                    answer: answer
+                });
             }
 
             async handleAnswer(data) {
@@ -904,7 +778,7 @@
                 try {
                     await this.peerConnection.addIceCandidate(data.candidate);
                 } catch (error) {
-                    console.error('Error adding ICE candidate:', error);
+                    console.error('❌ Error adding ICE candidate:', error);
                 }
             }
 
@@ -923,30 +797,26 @@
                     this.dataChannel = null;
                 }
                 
-                this.hideTypingIndicator();
                 this.updateStatus('Partner disconnected', 'disconnected');
                 this.resetUI();
             }
 
             sendMessage() {
                 const message = this.messageInput.value.trim();
-                if (!message || message.length > 500) return;
+                if (!message) return;
 
-                if (this.isConnected) {
-                    if (this.dataChannel && this.dataChannel.readyState === 'open') {
-                        this.dataChannel.send(message);
-                    }
+                if (this.isConnected && this.dataChannel && this.dataChannel.readyState === 'open') {
+                    this.dataChannel.send(message);
                     this.addMessage(message, 'sent');
                 } else if (this.isConnecting) {
-                    // Queue message if still connecting
                     this.messageQueue.push(message);
                     this.addMessage(message, 'sent');
                     this.addMessage('Message queued - connecting...', 'system');
+                } else {
+                    this.addMessage(message, 'sent');
                 }
                 
                 this.messageInput.value = '';
-                this.charCounter.textContent = '0/500';
-                this.messageInput.style.height = 'auto';
             }
 
             skipUser() {
@@ -974,17 +844,19 @@
                 }
                 
                 // Notify server of disconnection
-                if (this.ws && this.ws.readyState === WebSocket.OPEN && this.partnerId) {
-                    this.ws.send(JSON.stringify({
-                        type: 'disconnect',
-                        partnerId: this.partnerId
-                    }));
+                if (this.serverAvailable && this.partnerId) {
+                    try {
+                        await fetch('/api/signaling/disconnect', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: this.userId })
+                        });
+                    } catch (error) {
+                        console.error('❌ Failed to notify server of disconnection:', error);
+                    }
                 }
                 
                 this.partnerId = null;
-                this.hideTypingIndicator();
-                clearTimeout(this.typingTimer);
-                
                 this.updateStatus('Disconnected', 'disconnected');
                 this.addMessage('Disconnected from chat', 'system');
                 this.resetUI();
@@ -996,8 +868,6 @@
                 this.connectBtn.style.display = 'block';
                 this.controlButtonsEl.style.display = 'none';
                 this.messageInput.value = '';
-                this.charCounter.textContent = '0/500';
-                this.messageInput.style.height = 'auto';
                 this.messageQueue = [];
             }
         }
