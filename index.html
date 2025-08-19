@@ -456,44 +456,64 @@
                 try {
                     console.log('🔌 Connecting to signaling server...');
                     
-                    // Test server availability first
-                    const testResponse = await fetch('/api/signaling/status');
+                    // Try to connect directly via SSE - if it works, server is available
+                    this.eventSource = new EventSource(`/api/signaling?userId=${this.userId}`);
                     
-                    if (testResponse.ok) {
-                        console.log('✅ Server available - using real P2P mode');
-                        this.serverAvailable = true;
-                        this.connectionInfoEl.textContent = 'Server connected - Real P2P mode';
+                    // Set up a promise to detect successful connection
+                    const connectionPromise = new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(new Error('Connection timeout'));
+                        }, 10000); // 10 second timeout
                         
-                        // Connect via Server-Sent Events
-                        this.eventSource = new EventSource(`/api/signaling?userId=${this.userId}`);
-                        
-                        this.eventSource.onmessage = (event) => {
-                            const data = JSON.parse(event.data);
-                            console.log('📨 Received:', data);
-                            this.handleSignalingMessage(data);
+                        this.eventSource.onopen = () => {
+                            clearTimeout(timeout);
+                            console.log('✅ Server available - using real P2P mode');
+                            this.serverAvailable = true;
+                            this.connectionInfoEl.textContent = 'Server connected - Real P2P mode';
+                            resolve();
                         };
-
-                        // Handle specific event types
-                        ['connected', 'matched', 'signal', 'user-count', 'waiting', 'partner-disconnected'].forEach(eventType => {
-                            this.eventSource.addEventListener(eventType, (event) => {
-                                const data = JSON.parse(event.data);
-                                console.log(`📨 ${eventType}:`, data);
-                                this.handleSignalingMessage({ type: eventType, ...data });
-                            });
-                        });
-
+                        
                         this.eventSource.onerror = (error) => {
+                            clearTimeout(timeout);
                             console.error('❌ SSE Error:', error);
-                            this.connectionInfoEl.textContent = 'Connection lost - retrying...';
-                            setTimeout(() => this.connectToSignalingServer(), 3000);
+                            reject(error);
                         };
-                        
-                    } else {
-                        throw new Error('Server not available');
-                    }
+                    });
+                    
+                    // Wait for connection or timeout
+                    await connectionPromise;
+                    
+                    // Set up message handlers
+                    this.eventSource.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        console.log('📨 Received:', data);
+                        this.handleSignalingMessage(data);
+                    };
+
+                    // Handle specific event types
+                    ['connected', 'matched', 'signal', 'user-count', 'waiting', 'partner-disconnected'].forEach(eventType => {
+                        this.eventSource.addEventListener(eventType, (event) => {
+                            const data = JSON.parse(event.data);
+                            console.log(`📨 ${eventType}:`, data);
+                            this.handleSignalingMessage({ type: eventType, ...data });
+                        });
+                    });
+
+                    this.eventSource.onerror = (error) => {
+                        console.error('❌ SSE Connection lost:', error);
+                        this.connectionInfoEl.textContent = 'Connection lost - retrying...';
+                        // Don't auto-retry if we're already connected, user can manually retry
+                        if (!this.isConnected && !this.isConnecting) {
+                            setTimeout(() => this.connectToSignalingServer(), 3000);
+                        }
+                    };
                     
                 } catch (error) {
                     console.log('⚠️  Server not available - switching to demo mode');
+                    if (this.eventSource) {
+                        this.eventSource.close();
+                        this.eventSource = null;
+                    }
                     this.startDemoMode();
                 }
             }
