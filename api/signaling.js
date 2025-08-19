@@ -59,7 +59,11 @@ export default async function handler(req, res) {
     
     // Keep connection alive
     const keepAlive = setInterval(() => {
-      sendSSE(res, 'ping', { timestamp: Date.now() });
+      try {
+        sendSSE(res, 'ping', { timestamp: Date.now() });
+      } catch (error) {
+        clearInterval(keepAlive);
+      }
     }, 30000);
     
     req.on('close', () => {
@@ -87,11 +91,13 @@ export default async function handler(req, res) {
         res.status(404).json({ error: 'Endpoint not found' });
     }
   } else if (method === 'GET' && path === '/api/signaling/status') {
-    // Health check
+    // Health check endpoint
     res.status(200).json({
+      status: 'online',
       users: storage.users.size,
       waiting: storage.waiting.size,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      server: 'real'
     });
   } else {
     res.status(405).json({ error: 'Method not allowed' });
@@ -128,7 +134,7 @@ async function handleFindMatch(req, res, data) {
   const user = storage.users.get(userId);
   
   if (!user) {
-    res.status(400).json({ error: 'User not found' });
+    res.status(400).json({ error: 'User not found - please refresh the page' });
     return;
   }
   
@@ -180,7 +186,7 @@ function createMatch(userId1, userId2) {
   user2.status = 'matched';
   user2.partnerId = userId1;
   
-  // Decide initiator
+  // Decide initiator (randomly)
   const user1Initiates = Math.random() < 0.5;
   
   // Notify users
@@ -194,7 +200,8 @@ function createMatch(userId1, userId2) {
     isInitiator: !user1Initiates
   });
   
-  console.log(`Matched: ${userId1} <-> ${userId2}`);
+  console.log(`✅ Matched: ${userId1} <-> ${userId2}`);
+  sendUserCount();
 }
 
 async function handleSignalMessage(req, res, data) {
@@ -206,7 +213,7 @@ async function handleSignalMessage(req, res, data) {
     return;
   }
   
-  // Forward the signal
+  // Forward the WebRTC signal
   sendToUser(to, 'signal', {
     from,
     type,
@@ -215,6 +222,7 @@ async function handleSignalMessage(req, res, data) {
     candidate
   });
   
+  console.log(`📡 Forwarded ${type} from ${from} to ${to}`);
   res.status(200).json({ sent: true });
 }
 
@@ -244,14 +252,30 @@ function handleUserDisconnectInternal(userId) {
   user.status = 'idle';
   user.partnerId = null;
   storage.waiting.delete(userId);
+  
+  console.log(`🔌 User ${userId} disconnected from partner`);
+  sendUserCount();
 }
 
 function handleUserDisconnect(userId) {
   handleUserDisconnectInternal(userId);
   storage.users.delete(userId);
   sendUserCount();
-  console.log(`User ${userId} disconnected`);
+  console.log(`👋 User ${userId} left completely`);
 }
+
+// Clean up inactive connections every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  const timeout = 5 * 60 * 1000; // 5 minutes
+  
+  for (const [userId, user] of storage.users.entries()) {
+    if (now - user.lastSeen > timeout) {
+      console.log(`🧹 Cleaning up inactive user: ${userId}`);
+      handleUserDisconnect(userId);
+    }
+  }
+}, 60000); // Check every minute
 
 async function getBody(req) {
   return new Promise((resolve) => {
